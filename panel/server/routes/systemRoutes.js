@@ -64,19 +64,6 @@ router.get("/system", requireAuth, (_req, res) => {
   });
 });
 
-// GET Audit Logs
-router.get("/audit", requireAuth, (req, res) => {
-  const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
-  const logs = auditService.getRecent(limit);
-  return res.json({
-    success: true,
-    data: {
-      total: logs.length,
-      logs,
-    }
-  });
-});
-
 // GET Settings overview for Admin Panel
 router.get("/settings", requireAuth, (_req, res) => {
   const settings = kobeniService.getSettings();

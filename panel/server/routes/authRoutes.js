@@ -85,21 +85,6 @@ router.post("/google-login", loginLimiter, async (req, res) => {
   }
 });
 
-// Fallback legacy endpoint pointing to the same secure handler
-router.post("/firebase-login", loginLimiter, async (req, res) => {
-  const { idToken, profile } = req.body || {};
-  // If idToken is passed inside profile or root
-  const tokenToVerify = idToken || profile?.idToken;
-  if (!tokenToVerify) {
-    return res.status(400).json({
-      success: false,
-      error: { code: "MISSING_TOKEN", message: "Google ID Token is required for secure authentication" }
-    });
-  }
-  req.body.idToken = tokenToVerify;
-  return router.handle(req, res);
-});
-
 // GET Current Admin Session info
 router.get("/me", requireAuth, (req, res) => {
   return res.json({

@@ -369,6 +369,42 @@ export const kobeniService = {
     return { success: true, message: `Plugin ${cleanCat}/${cleanFile} deleted successfully` };
   },
 
+  async deletePluginCategory(category) {
+    const cleanCat = String(category || "").trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(cleanCat)) {
+      throw new Error("Invalid plugin category name");
+    }
+
+    const categoryPath = path.join(config.pluginsDir, cleanCat);
+    const pluginsRoot = path.resolve(config.pluginsDir);
+    const resolvedCategoryPath = path.resolve(categoryPath);
+
+    if (!resolvedCategoryPath.startsWith(`${pluginsRoot}${path.sep}`)) {
+      throw new Error("Invalid plugin category path");
+    }
+    if (!fs.existsSync(categoryPath)) {
+      throw new Error(`Plugin category not found: ${cleanCat}`);
+    }
+
+    const stats = await fs.promises.stat(categoryPath);
+    if (!stats.isDirectory()) {
+      throw new Error(`Plugin category is not a directory: ${cleanCat}`);
+    }
+
+    await fs.promises.rm(categoryPath, { recursive: true, force: true });
+
+    if (global.plugins) {
+      for (const [command, pluginInfo] of Object.entries(global.plugins)) {
+        if (pluginInfo.category === cleanCat) {
+          delete global.plugins[command];
+        }
+      }
+    }
+
+    logService.add("WARN", "SYSTEM", `Deleted plugin category ${cleanCat}`);
+    return { success: true, category: cleanCat, message: `Plugin category ${cleanCat} deleted successfully` };
+  },
+
   async reloadPlugins() {
     logService.add("INFO", "SYSTEM", "Reloading all bot plugins into memory...");
     const pluginDir = config.pluginsDir;

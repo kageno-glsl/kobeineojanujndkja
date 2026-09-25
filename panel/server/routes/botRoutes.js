@@ -9,19 +9,6 @@ import { requireAuth, mutationLimiter } from "../security.js";
 
 const router = express.Router();
 
-// GET Main Bot status & metrics
-router.get("/", requireAuth, (_req, res) => {
-  const mainBot = getMainBotStatus();
-
-  return res.json({
-    success: true,
-    data: {
-      role: "admin",
-      main: mainBot,
-    }
-  });
-});
-
 // GET Main bot status explicitly
 router.get("/main", requireAuth, (_req, res) => {
   const status = getMainBotStatus();

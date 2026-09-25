@@ -10,7 +10,6 @@ import { getMainBotController } from "./services/mainBotBridge.js";
 // Routes
 import authRoutes from "./routes/authRoutes.js";
 import botRoutes from "./routes/botRoutes.js";
-import accessRoutes from "./routes/accessRoutes.js";
 import pluginRoutes from "./routes/pluginRoutes.js";
 import systemRoutes from "./routes/systemRoutes.js";
 import logRoutes from "./routes/logRoutes.js";
@@ -47,7 +46,6 @@ app.use("/media", express.static(mediaDir));
 // Mount API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/bots", botRoutes);
-app.use("/api/bots", accessRoutes);
 app.use("/api/plugins", pluginRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/api/logs", logRoutes);

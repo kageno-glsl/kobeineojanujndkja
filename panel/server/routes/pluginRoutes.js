@@ -118,33 +118,27 @@ router.delete("/:category/:filename", requireAuth, async (req, res) => {
   }
 });
 
+// DELETE Delete an entire plugin category folder
+router.delete("/:category", requireAuth, validatePluginCategory, async (req, res) => {
+  try {
+    const category = req.params.category.toLowerCase();
+    const result = await kobeniService.deletePluginCategory(category);
+    auditService.log("DELETE_PLUGIN_CATEGORY", category, req.user.email, "SUCCESS");
+
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: { code: "DELETE_PLUGIN_CATEGORY_FAILED", message: err.message }
+    });
+  }
+});
+
 // POST Validate plugin syntax without saving
 router.post("/validate-syntax", requireAuth, (req, res) => {
   const { code } = req.body || {};
   const check = checkModuleSyntax(code);
   return res.json({ success: true, data: check });
-});
-
-// GET Plugins for specific category
-router.get("/:category", requireAuth, validatePluginCategory, async (req, res) => {
-  const category = req.params.category.toLowerCase();
-  try {
-    const data = await kobeniService.getPlugins();
-    const found = data.categories.find(c => c.category === category);
-    if (!found) {
-      return res.status(404).json({
-        success: false,
-        error: { code: "CATEGORY_NOT_FOUND", message: `Category '${category}' not found` }
-      });
-    }
-
-    return res.json({ success: true, data: found });
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: { code: "CATEGORY_FETCH_FAILED", message: err.message }
-    });
-  }
 });
 
 export default router;

@@ -1,4 +1,4 @@
-import { API, showToast, escapeHtml } from "./api.js";
+import { API, escapeHtml } from "./api.js";
 import { Mascot } from "./mascot.js";
 import { FirebaseService } from "./firebase-service.js";
 
@@ -164,7 +164,6 @@ function handleBotStatusUpdate(status, meta = {}) {
   } else if (state.activeTab === "bots") {
     refreshBots(false);
   }
-  showToast(`Main Bot is now ${status}`, status === "ONLINE" ? "success" : status === "CRASHED" ? "error" : "info");
 }
 
 function handlePairingCodeUpdate(code, targetNumber) {
@@ -176,7 +175,6 @@ function handlePairingCodeUpdate(code, targetNumber) {
       targetNumber
     };
   }
-  showToast(`Pairing code received: ${code}`, "success");
   if (state.activeTab === "dashboard") refreshDashboard(false);
   else if (state.activeTab === "bots") refreshBots(false);
 }
@@ -299,7 +297,6 @@ async function refreshDashboard(showLoader = true) {
     // Recent activity table
     renderRecentActivityTable(state.recentActivity);
   } catch (err) {
-    if (showLoader) showToast(err.message, "error");
   }
 }
 
@@ -346,7 +343,6 @@ async function refreshBots(showLoader = true) {
     state.mainBot = data;
     renderMainBotCard(data);
   } catch (err) {
-    if (showLoader) showToast(err.message, "error");
   }
 }
 
@@ -456,7 +452,6 @@ export async function handleStartWithInputNumber(inputId) {
   const phoneNumber = input ? input.value.trim() : "";
 
   if (!phoneNumber || phoneNumber.replace(/[^0-9]/g, "").length < 7) {
-    showToast("Please enter a valid WhatsApp phone number (at least 7 digits)", "error");
     return;
   }
 
@@ -464,13 +459,10 @@ export async function handleStartWithInputNumber(inputId) {
   state.isProcessingAction = true;
 
   try {
-    showToast(`Initiating Main Bot start for number ${phoneNumber}...`, "info");
     const res = await API.startMainBot(phoneNumber);
-    showToast(res.message || "Bot start initiated", "success");
     await refreshDashboard(false);
     await refreshBots(false);
   } catch (err) {
-    showToast(err.message, "error");
   } finally {
     state.isProcessingAction = false;
   }
@@ -481,7 +473,6 @@ export async function handleBotAction(botId, action) {
   state.isProcessingAction = true;
 
   try {
-    showToast(`Sending ${action.toUpperCase()} command to Main Bot...`, "info");
     if (action === "start") {
       const phoneInput = document.getElementById("dash-phone-input");
       const phone = phoneInput ? phoneInput.value.trim() : null;
@@ -494,11 +485,9 @@ export async function handleBotAction(botId, action) {
       await API.restartMainBot(phone);
     }
 
-    showToast(`Main Bot ${action}ed successfully`, "success");
     await refreshDashboard(false);
     await refreshBots(false);
   } catch (err) {
-    showToast(err.message, "error");
   } finally {
     state.isProcessingAction = false;
   }
@@ -509,11 +498,9 @@ export function copyPairingCode(codeOverride = null) {
                document.getElementById("dash-pairing-code-display")?.innerText?.trim() || 
                state.mainBot?.pairingState?.code;
   if (!code || code === "---- ----" || code === "WAITING...") {
-    showToast("No pairing code available yet", "info");
     return;
   }
   navigator.clipboard.writeText(code);
-  showToast(`Pairing code ${code} copied to clipboard!`, "success");
 }
 
 // --- Live Logs ---
@@ -523,7 +510,6 @@ async function refreshLogs() {
     state.logs = data.logs || [];
     renderLogsTerminal();
   } catch (err) {
-    showToast(err.message, "error");
   }
 }
 
@@ -567,15 +553,20 @@ function renderSingleLogLine(l) {
     BOT: "text-[#16a085] font-bold"
   };
   const color = levelColors[l.level] || "text-[#334155] font-bold";
+  const message = stripAnsiCodes(l.message);
 
   return `
     <div class="hover:bg-[#f1f5f9] px-1 py-0.5 rounded font-mono text-[11px] leading-relaxed break-all">
       <span class="text-[#64748b] select-none font-bold">${new Date(l.timestamp).toLocaleTimeString()}</span>
       <span class="${color} select-none mx-1.5">[${l.level}]</span>
       <span class="text-[#334155] font-bold select-none mr-1.5">&lt;${escapeHtml(l.source)}&gt;</span>
-      <span class="text-[#0f172a] font-medium">${escapeHtml(l.message)}</span>
+      <span class="text-[#0f172a] font-medium">${escapeHtml(message)}</span>
     </div>
   `;
+}
+
+function stripAnsiCodes(value) {
+  return String(value ?? "").replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
 window.filterLogs = function(level) {
@@ -603,8 +594,7 @@ window.handleClearLogs = async function() {
 
 window.copyLogsToClipboard = function() {
   const text = state.logs.map(l => `[${l.timestamp}] [${l.level}] <${l.source}> ${l.message}`).join("\n");
-  navigator.clipboard.writeText(text);
-  showToast("Logs copied to clipboard!", "success");
+    navigator.clipboard.writeText(text);
 };
 
 // --- Plugins Manager ---
@@ -634,7 +624,6 @@ async function refreshPlugins() {
     renderPluginsPills(data.categories || []);
     renderPluginsGrid(data.plugins || []);
   } catch (err) {
-    showToast(err.message, "error");
   }
 }
 
@@ -661,9 +650,12 @@ function renderPluginsPills(categories) {
   categories.forEach(c => {
     const active = state.pluginsFilterCategory === c.category;
     html += `
-      <button onclick="filterPluginsCategory('${c.category}')" class="pixel-btn ${active ? 'pixel-btn-primary' : 'pixel-btn-secondary'} text-[10px] py-1 px-2.5 uppercase">
-        ${c.category} (${c.pluginCount})
-      </button>
+      <div class="plugin-category-pill">
+        <button onclick="filterPluginsCategory('${c.category}')" class="pixel-btn ${active ? 'pixel-btn-primary' : 'pixel-btn-secondary'} text-[10px] py-1 px-2.5 uppercase">
+          ${c.category} (${c.pluginCount})
+        </button>
+        <button onclick="deletePluginCategory('${escapeHtml(c.category)}')" class="plugin-category-delete" title="Delete ${escapeHtml(c.category)} folder" aria-label="Delete ${escapeHtml(c.category)} folder">×</button>
+      </div>
     `;
   });
 
@@ -759,12 +751,9 @@ window.handleReloadPlugins = async function() {
   if (btn) btn.disabled = true;
 
   try {
-    showToast("Reloading plugins into bot handler...", "info");
     const res = await API.reloadPlugins();
-    showToast(res.message || "Plugins reloaded!", "success");
     await refreshPlugins();
   } catch (err) {
-    showToast(err.message, "error");
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -848,7 +837,6 @@ window.openEditPluginModal = async function(category, filename) {
   if (delBtn) delBtn.classList.remove("hidden");
 
   try {
-    showToast(`Loading ${category}/${filename}...`, "info");
     const res = await API.getPluginDetail(category, filename);
     if (codeTextarea) codeTextarea.value = res.code || "// Empty";
     setEditorDirty(false);
@@ -862,7 +850,6 @@ window.openEditPluginModal = async function(category, filename) {
       if (syntaxStatus) syntaxStatus.innerHTML = `<span class="text-[#27ae60]">✓ Syntax Valid</span>`;
     }
   } catch (err) {
-    showToast(err.message, "error");
     if (codeTextarea) codeTextarea.value = "// Error loading file content";
   }
 
@@ -878,7 +865,6 @@ window.insertPluginTemplate = function() {
   if (codeTextarea) {
     codeTextarea.value = getDefaultPluginTemplate(cmdName);
     handleCheckEditorSyntax();
-    showToast("Template inserted!", "success");
   }
 };
 
@@ -913,15 +899,12 @@ window.handleCheckEditorSyntax = async function(options = {}) {
     if (res.valid) {
       if (errBox) errBox.classList.add("hidden");
       if (syntaxStatus) syntaxStatus.innerHTML = `<span class="text-[#27ae60]">✓ Syntax is 100% Valid</span>`;
-      if (!options.silent) showToast("JavaScript Syntax is valid!", "success");
     } else {
       if (errBox) errBox.classList.remove("hidden");
       if (errMsg) errMsg.innerText = res.error || "Syntax error";
       if (syntaxStatus) syntaxStatus.innerHTML = `<span class="text-[#da4453]">⚠️ Syntax Error Detected</span>`;
-      if (!options.silent) showToast(`Syntax error: ${res.error}`, "error");
     }
   } catch (err) {
-    if (!options.silent) showToast(err.message, "error");
   }
 };
 
@@ -937,7 +920,6 @@ window.handleSavePlugin = async function() {
   const code = codeTextarea?.value || "";
 
   if (!code.trim()) {
-    showToast("Plugin code cannot be empty", "error");
     return;
   }
 
@@ -946,24 +928,19 @@ window.handleSavePlugin = async function() {
   try {
     let result;
     if (activeEditorMode === "create") {
-      showToast(`Creating plugin ${category}/${filename}...`, "info");
       result = await API.createPlugin({ category, filename, code });
     } else {
-      showToast(`Updating plugin ${activeEditCategory}/${activeEditFilename}...`, "info");
       result = await API.updatePlugin(activeEditCategory, activeEditFilename, code);
     }
 
     if (result.hasSyntaxError) {
-      showToast(`Saved with syntax error warning: ${result.syntaxError}`, "error");
     } else {
-      showToast(result.message || "Plugin saved and reloaded!", "success");
     }
 
     setEditorDirty(false);
     closePluginModal();
     await refreshPlugins();
   } catch (err) {
-    showToast(err.message, "error");
   } finally {
     if (saveBtn) saveBtn.disabled = false;
   }
@@ -976,13 +953,10 @@ window.handleDeletePlugin = async function() {
   if (!confirmed) return;
 
   try {
-    showToast(`Deleting ${activeEditCategory}/${activeEditFilename}...`, "info");
     const res = await API.deletePlugin(activeEditCategory, activeEditFilename);
-    showToast(res.message || "Plugin deleted successfully", "success");
     closePluginModal();
     await refreshPlugins();
   } catch (err) {
-    showToast(err.message, "error");
   }
 };
 
@@ -991,12 +965,21 @@ window.deletePluginDirect = async function(category, filename) {
   if (!confirmed) return;
 
   try {
-    showToast(`Deleting ${category}/${filename}...`, "info");
     const res = await API.deletePlugin(category, filename);
-    showToast(res.message || "Plugin deleted successfully", "success");
     await refreshPlugins();
   } catch (err) {
-    showToast(err.message, "error");
+  }
+};
+
+window.deletePluginCategory = async function(category) {
+  const confirmed = confirm(`Delete the entire '${category}' plugin folder and all files inside it?`);
+  if (!confirmed) return;
+
+  try {
+    await API.deletePluginCategory(category);
+    if (state.pluginsFilterCategory === category) state.pluginsFilterCategory = "all";
+    await refreshPlugins();
+  } catch (err) {
   }
 };
 
@@ -1049,7 +1032,6 @@ async function refreshSystemMetrics(showLoader = true) {
     renderSystemView();
     updateTopBarMetrics(metrics);
   } catch (err) {
-    if (showLoader) showToast(err.message, "error");
   }
 }
 
@@ -1128,34 +1110,8 @@ async function refreshSettings() {
     const setWmsw = document.getElementById("set-wmsw");
     if (setWmsw) setWmsw.value = data.wmsw || "";
 
-    renderAccessUsers(data.accessUsers || []);
   } catch (err) {
-    showToast(err.message, "error");
   }
-}
-
-function renderAccessUsers(users) {
-  const container = document.getElementById("access-users-list");
-  const badge = document.getElementById("access-total-badge");
-  if (badge) badge.innerText = `${users.length} USERS`;
-  if (!container) return;
-
-  if (users.length === 0) {
-    container.innerHTML = `<div class="p-3 bg-white border border-[#cbd5e1] rounded text-[#64748b] text-center font-bold">No access users added yet</div>`;
-    return;
-  }
-
-  container.innerHTML = users.map(u => `
-    <div class="p-2.5 bg-white border-2 border-[#cbd5e1] rounded flex items-center justify-between hover:bg-[#f8fafc]">
-      <div class="flex items-center gap-2">
-        <span class="text-[#27ae60] font-bold">●</span>
-        <span class="font-bold text-[#0f172a]">${escapeHtml(u.id || u)}</span>
-      </div>
-      <button onclick="handleRemoveAccessUser('${escapeHtml(u.id || u)}')" class="pixel-btn pixel-btn-danger text-[10px] py-1 px-2">
-        ✕ [ REMOVE ]
-      </button>
-    </div>
-  `).join("");
 }
 
 window.handleSaveSettings = async function(e) {
@@ -1179,41 +1135,10 @@ window.handleSaveSettings = async function(e) {
       wmsw
     });
 
-    showToast("Bot settings saved successfully!", "success");
     await refreshSettings();
   } catch (err) {
-    showToast(err.message, "error");
   } finally {
     if (btn) btn.disabled = false;
-  }
-};
-
-window.handleAddAccessUser = async function() {
-  const input = document.getElementById("new-access-number");
-  const number = input?.value?.trim();
-
-  if (!number || number.replace(/[^0-9]/g, "").length < 7) {
-    showToast("Please enter a valid phone number with country code", "error");
-    return;
-  }
-
-  try {
-    await API.addAccess("main", number);
-    showToast(`User ${number} added to Access list`, "success");
-    if (input) input.value = "";
-    await refreshSettings();
-  } catch (err) {
-    showToast(err.message, "error");
-  }
-};
-
-window.handleRemoveAccessUser = async function(number) {
-  try {
-    await API.removeAccess("main", number);
-    showToast(`User ${number} removed from Access list`, "success");
-    await refreshSettings();
-  } catch (err) {
-    showToast(err.message, "error");
   }
 };
 
@@ -1235,7 +1160,6 @@ window.executeWipeSession = async function() {
   const val = input ? input.value.trim().toUpperCase() : "";
 
   if (val !== "RESET") {
-    showToast("Please type 'RESET' in uppercase to confirm wipe", "error");
     return;
   }
 
@@ -1243,14 +1167,11 @@ window.executeWipeSession = async function() {
   if (btn) btn.disabled = true;
 
   try {
-    showToast("Wiping Baileys session credentials...", "info");
     const res = await API.resetMainSession("RESET");
-    showToast(res.message || "Session wiped successfully!", "success");
     closeWipeModal();
     await refreshDashboard(false);
     await refreshBots(false);
   } catch (err) {
-    showToast(err.message, "error");
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -1267,15 +1188,12 @@ async function handleGoogleSignIn() {
   if (btnText) btnText.innerText = "Connecting with Google...";
 
   try {
-    showToast("Opening Google Sign-In with Firebase...", "info");
     const { idToken, profile } = await FirebaseService.signInWithGoogle();
 
-    showToast("Verifying administrator identity...", "info");
     const res = await API.googleLogin(idToken, profile);
     API.setToken(res.token);
 
     state.user = res;
-    showToast(`Welcome Administrator! Signed in as ${res.email}`, "success");
     showMainView();
   } catch (err) {
     console.error("Google sign-in error:", err);
@@ -1288,11 +1206,8 @@ async function handleGoogleSignIn() {
         const deniedEmail = document.getElementById("denied-email-display");
         if (deniedEmail) deniedEmail.innerText = err.unauthorizedEmail || "this account";
       }
-      showToast("Access Denied: This Google account is not the authorized administrator.", "error");
     } else if (err?.code === "auth/popup-closed-by-user") {
-      showToast("Google sign-in popup was closed.", "info");
     } else {
-      showToast(err.message || "Authentication failed", "error");
     }
   } finally {
     if (btn) btn.disabled = false;
@@ -1335,7 +1250,6 @@ function setupEventListeners() {
       API.setToken(null);
       state.user = null;
       showLoginView();
-      showToast("Signed out successfully", "info");
     });
   });
 
