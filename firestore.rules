@@ -1,0 +1,21 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Default deny all unauthenticated writes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Audit logs for administrator actions
+    match /auditLogs/{logId} {
+      allow read, create: if isAuthenticated();
+    }
+  }
+}
