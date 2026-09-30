@@ -1,7 +1,7 @@
 import express from "express";
 import { kobeniService, checkModuleSyntax } from "../services/kobeniService.js";
 import { auditService } from "../services/auditService.js";
-import { requireAuth, validatePluginCategory } from "../security.js";
+import { requireAuth, validatePluginCategory, mutationLimiter } from "../security.js";
 
 const router = express.Router();
 
@@ -19,7 +19,7 @@ router.get("/", requireAuth, async (_req, res) => {
 });
 
 // POST Reload all plugins into memory
-router.post("/reload", requireAuth, async (req, res) => {
+router.post("/reload", requireAuth, mutationLimiter, async (req, res) => {
   try {
     const data = await kobeniService.reloadPlugins();
     auditService.log("RELOAD_PLUGINS", "plugins", req.user.email, "SUCCESS", {
@@ -58,7 +58,7 @@ router.get("/detail/:category/:filename", requireAuth, async (req, res) => {
 });
 
 // POST Create new plugin
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, mutationLimiter, async (req, res) => {
   try {
     const { category, filename, code } = req.body || {};
     if (!filename || typeof filename !== "string") {
@@ -81,7 +81,7 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 // PUT Save/Update existing plugin
-router.put("/:category/:filename", requireAuth, async (req, res) => {
+router.put("/:category/:filename", requireAuth, mutationLimiter, async (req, res) => {
   try {
     const { category, filename } = req.params;
     const { code } = req.body || {};
@@ -103,7 +103,7 @@ router.put("/:category/:filename", requireAuth, async (req, res) => {
 });
 
 // DELETE Delete a plugin
-router.delete("/:category/:filename", requireAuth, async (req, res) => {
+router.delete("/:category/:filename", requireAuth, mutationLimiter, async (req, res) => {
   try {
     const { category, filename } = req.params;
     const result = await kobeniService.deletePlugin(category, filename);
@@ -119,7 +119,7 @@ router.delete("/:category/:filename", requireAuth, async (req, res) => {
 });
 
 // DELETE Delete an entire plugin category folder
-router.delete("/:category", requireAuth, validatePluginCategory, async (req, res) => {
+router.delete("/:category", requireAuth, mutationLimiter, validatePluginCategory, async (req, res) => {
   try {
     const category = req.params.category.toLowerCase();
     const result = await kobeniService.deletePluginCategory(category);
@@ -135,7 +135,7 @@ router.delete("/:category", requireAuth, validatePluginCategory, async (req, res
 });
 
 // POST Validate plugin syntax without saving
-router.post("/validate-syntax", requireAuth, (req, res) => {
+router.post("/validate-syntax", requireAuth, mutationLimiter, (req, res) => {
   const { code } = req.body || {};
   const check = checkModuleSyntax(code);
   return res.json({ success: true, data: check });

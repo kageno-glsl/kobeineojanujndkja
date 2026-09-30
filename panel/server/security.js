@@ -39,6 +39,39 @@ export function requireAuth(req, res, next) {
   next();
 }
 
+export function isAuthorizedWebSocketUpgrade(req) {
+  const origin = req.headers.origin;
+  const host = req.headers.host;
+  if (!origin || !host) return false;
+
+  try {
+    const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "")
+      .split(",")[0]
+      .trim()
+      .toLowerCase();
+    const protocol = forwardedProtocol || (req.socket.encrypted ? "https" : "http");
+    if (protocol !== "http" && protocol !== "https") return false;
+    if (new URL(origin).origin !== new URL(`${protocol}://${host}`).origin) return false;
+  } catch (_e) {
+    return false;
+  }
+
+  const sessionCookie = (req.headers.cookie || "")
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("kobeni_session="));
+  if (!sessionCookie) return false;
+
+  let token;
+  try {
+    token = decodeURIComponent(sessionCookie.slice("kobeni_session=".length));
+  } catch (_e) {
+    return false;
+  }
+
+  return Boolean(authService.verifyToken(token));
+}
+
 export function optionalAuth(req, res, next) {
   const cookies = parseCookies(req);
   const bearer = req.headers.authorization?.startsWith("Bearer ")

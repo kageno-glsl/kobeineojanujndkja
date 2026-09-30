@@ -1,6 +1,4 @@
 import express from "express";
-import fs from "node:fs";
-import path from "node:path";
 import { config } from "../config.js";
 import { authService } from "../services/authService.js";
 import { auditService } from "../services/auditService.js";
@@ -10,22 +8,10 @@ const router = express.Router();
 
 // GET Firebase client config
 router.get("/config", (_req, res) => {
-  try {
-    const configPath = path.join(config.rootDir, "firebase-applet-config.json");
-    if (fs.existsSync(configPath)) {
-      const fbConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-      return res.json({
-        success: true,
-        data: {
-          ...fbConfig,
-          configuredAdminEmail: authService.getAdminEmail(),
-        }
-      });
-    }
-  } catch (_e) {}
   return res.json({
     success: true,
     data: {
+      ...(config.firebaseConfig || {}),
       configuredAdminEmail: authService.getAdminEmail(),
     }
   });

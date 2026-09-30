@@ -1,6 +1,5 @@
 //=================
 import fs from "fs-extra";
-import path from "node:path";
 import util from "util";
 import { exec } from "child_process";
 import { createRequire } from "module";
@@ -8,22 +7,6 @@ import { generateWAMessageFromContent } from "@whiskeysockets/baileys";
 import { addAccessUser, delAccessUser, setPublic, isPublic, get } from "./lib/access.js";
 import { getGroupAdmins } from "./lib/smsg.js";
 import { addBot, delBot, listBot } from "../outdex.js";
-
-// Helper to load clone feature policy configured by Main Bot Admin
-function getClonePolicy() {
-  try {
-    const configPath = path.join(import.meta.dirname, "database", "clone_config.json");
-    if (fs.existsSync(configPath)) {
-      return fs.readJsonSync(configPath);
-    }
-  } catch (_e) {}
-  return global.defaultCloneConfig || {
-    allowedCategories: ["tools", "anime", "downloader", "ai", "group", "search"],
-    restrictedPlugins: ["broadcast.js", "owner.js"],
-    allowCustomPrefix: true,
-    allowPublicModeToggle: true
-  };
-}
 //=================
 export default async (conn, m) => {
 try {
@@ -84,22 +67,6 @@ console.log(
 //=================
 const pluginData = global.plugins[command];
 if (pluginData) {
-// If this is a Clone Bot, enforce Admin Main Bot policy
-if (!isMainBot) {
-const clonePolicy = getClonePolicy();
-const category = (pluginData.category || "plugins").toLowerCase();
-const pluginFile = (pluginData.name || "").toLowerCase();
-
-const allowedCats = (clonePolicy.allowedCategories || []).map(c => c.toLowerCase());
-const isCategoryAllowed = allowedCats.includes(category);
-const restrictedList = (clonePolicy.restrictedPlugins || []).map(r => r.toLowerCase());
-const isRestricted = restrictedList.some(r => pluginFile.includes(r) || r === command.toLowerCase());
-
-if (!isCategoryAllowed || isRestricted || category === "owner") {
-return m.reply(`⚠️ *FITUR DINONAKTIFKAN UNTUK CLONE BOT*\nPerintah *${prefix + command}* (kategori: *${category}*) dinonaktifkan untuk Clone Bot berdasarkan konfigurasi Admin di Control Panel.`);
-}
-}
-
 await pluginData.handler(m, {
 conn,
 m,
@@ -119,51 +86,32 @@ switch (command) {
 case "menu":
 case "smenu":
 case "allmenu": {
-const clonePolicy = !isMainBot ? getClonePolicy() : null;
 const categories = {
-owner: ["public", "self", "exec", "eval", "addaccess", "delaccess", "listaccess", "addbot", "delbot", "listbot"]
+owner: ["public", "self", "addaccess", "delaccess", "listaccess", "addbot", "delbot", "listbot"]
 };
 for (const cmd in global.plugins) {
 const cat = (global.plugins[cmd].category || "plugins").toLowerCase();
-const pluginFile = (global.plugins[cmd].name || "").toLowerCase();
-
-// If this is a clone bot, filter categories and restricted commands based on Admin policy
-if (!isMainBot && clonePolicy) {
-const allowedCats = (clonePolicy.allowedCategories || []).map(c => c.toLowerCase());
-if (!allowedCats.includes(cat)) continue;
-const restrictedList = (clonePolicy.restrictedPlugins || []).map(r => r.toLowerCase());
-if (restrictedList.some(r => pluginFile.includes(r) || r === cmd.toLowerCase())) continue;
-}
-
 if (!categories[cat]) categories[cat] = [];
 if (!categories.owner.includes(cmd)) {
 categories[cat].push(cmd);
 }
 }
-
-// Remove owner category from clone bots
-if (!isMainBot) {
-delete categories.owner;
-}
-
 let totalCmds = 0;
 for (const cat in categories) totalCmds += categories[cat].length;
 const uptime = `${Math.floor(process.uptime() / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m`;
 const statusBot = isPublic(dbId) ? "Public" : "Self"; 
-const botTypeLabel = isMainBot ? "👑 Main Bot (Administrator)" : "🤖 Clone Bot (Outdex Engine)";
 let captionText = "";
 if (command === "menu") {
 let keys = Object.keys(categories).filter(k => k !== "owner");
-if (isMainBot) keys.push("owner");
+keys.push("owner");
 let catList = keys.map(k => `> │ ${prefix}smenu ${k}`).join("\n");
 captionText = `Moshi-moshi, ${m.pushName}-san!
 A-anu... selamat datang di Kobeni MD.
 ╭╼ *⌗ Bot Info* ╾
-> │ Type: ${botTypeLabel}
 > │ Uptime: ${uptime}
 > │ Mode: ${statusBot}
 > │ Total: ${totalCmds} Cmds
-${!isMainBot ? "> │ Policy: Diselaraskan dengan Admin Main Bot\n" : ""}╰╼ 
+╰╼ 
 ╭╼ *⌗ User Info* ╾
 > │ Sender: ${m.sender.replace(/\D/g, "")}
 > │ Access: ${isAccess ? "True" : "False"}
@@ -173,8 +121,7 @@ ${catList}
 ╰╼
 _Type ${prefix}allmenu for full list menu.._`;
 } else if (command === "smenu") {
-const defaultCat = isMainBot ? "owner" : (Object.keys(categories)[0] || "tools");
-const category = (args[0] || defaultCat).toLowerCase();
+const category = (args[0] || "owner").toLowerCase();
 const commandsList = categories[category];
 if (!commandsList) return m.reply(mess.wrong);
 captionText = `╭╼ *⌗ Category:* ${category.charAt(0).toUpperCase() + category.slice(1)} ╾
@@ -187,11 +134,11 @@ _Type ${prefix}menu to back.._`;
 } else if (command === "allmenu") {
 let allCatText = "";
 let keys = Object.keys(categories).filter(k => k !== "owner");
-if (isMainBot) keys.push("owner");
+keys.push("owner");
 for (const cat of keys) {
 allCatText += `╭╼ *⌗ ${cat.charAt(0).toUpperCase() + cat.slice(1)}* ╾\n${categories[cat].map(cmd => `> │ ${prefix}${cmd}`).join("\n")}\n╰╼\n\n`;
 }
-captionText = `╭╼ *⌗ All Menu (${botTypeLabel})* ╾
+captionText = `╭╼ *⌗ All Menu* ╾
 > │ Total: ${totalCmds} Cmds
 ╰╼
 ${allCatText.trim()}
@@ -258,7 +205,6 @@ break;
 case "public":
 {
 if (!isAccess) return m.reply(mess.owner);
-if (!isMainBot && getClonePolicy().allowPublicModeToggle === false) return m.reply("⚠️ Pengaturan mode untuk Clone Bot dinonaktifkan oleh Admin Main Bot.");
 if (isPublic(dbId)) return m.reply(mess.wrong);
 setPublic(true, dbId);
 m.reply(mess.success);
@@ -268,7 +214,6 @@ break;
 case "self":
 {
 if (!isAccess) return m.reply(mess.owner);
-if (!isMainBot && getClonePolicy().allowPublicModeToggle === false) return m.reply("⚠️ Pengaturan mode untuk Clone Bot dinonaktifkan oleh Admin Main Bot.");
 if (!isPublic(dbId)) return m.reply(mess.wrong);
 setPublic(false, dbId);
 m.reply(mess.success);

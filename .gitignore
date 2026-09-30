@@ -1,3 +1,10 @@
 node_modules/
 session/
 .env
+
+# Local Firebase and panel configuration
+firebase-applet-config.json
+panel/.env
+panel/server/.env
+firebase-debug.log
+.firebase/

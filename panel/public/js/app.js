@@ -21,6 +21,8 @@ const state = {
   realtimeSocket: null,
   realtimeReconnectTimer: null,
   realtimePingTimer: null,
+  refreshTimer: null,
+  realtimeEnabled: false,
   isProcessingAction: false,
 };
 
@@ -45,8 +47,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function showLoginView() {
+  state.user = null;
+  state.realtimeEnabled = false;
   document.getElementById("login-view").classList.remove("hidden");
   document.getElementById("main-view").classList.add("hidden");
+
+  if (state.refreshTimer) {
+    clearInterval(state.refreshTimer);
+    state.refreshTimer = null;
+  }
   
   const mascotContainer = document.getElementById("login-mascot-container");
   if (mascotContainer) {
@@ -68,6 +77,7 @@ function showLoginView() {
 }
 
 function showMainView() {
+  state.realtimeEnabled = true;
   document.getElementById("login-view").classList.add("hidden");
   document.getElementById("main-view").classList.remove("hidden");
 
@@ -88,7 +98,8 @@ function showMainView() {
   refreshDashboard();
 
   // Background refresh interval
-  setInterval(() => {
+  if (state.refreshTimer) clearInterval(state.refreshTimer);
+  state.refreshTimer = setInterval(() => {
     if (state.activeTab === "dashboard") refreshDashboard(false);
     else if (state.activeTab === "bots") refreshBots(false);
     else if (state.activeTab === "server") refreshSystemMetrics(false);
@@ -129,12 +140,13 @@ function initRealtime() {
   };
 
   socket.onclose = () => {
-    if (state.realtimeSocket === socket) state.realtimeSocket = null;
+    if (state.realtimeSocket !== socket) return;
+    state.realtimeSocket = null;
     if (state.realtimePingTimer) {
       clearInterval(state.realtimePingTimer);
       state.realtimePingTimer = null;
     }
-    if (!state.realtimeReconnectTimer) {
+    if (state.realtimeEnabled && state.user && !state.realtimeReconnectTimer) {
       state.realtimeReconnectTimer = setTimeout(() => {
         state.realtimeReconnectTimer = null;
         initRealtime();
@@ -474,7 +486,9 @@ export async function handleBotAction(botId, action) {
 
   try {
     if (action === "start") {
-      const phoneInput = document.getElementById("dash-phone-input");
+      const phoneInput = document.getElementById(
+        action === "restart" ? "main-card-phone-input" : "dash-phone-input"
+      );
       const phone = phoneInput ? phoneInput.value.trim() : null;
       await API.startMainBot(phone);
     } else if (action === "stop") {

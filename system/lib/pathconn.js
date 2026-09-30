@@ -26,7 +26,6 @@ if (/^\d+$/.test(clean)) return `${clean}@s.whatsapp.net`;
 return clean;
 };
 //=================
-//=================
 conn.downloadMediaMessage = async (message) => {
 const mime = (message.msg || message).mimetype || "";
 const messageType = message.mtype
@@ -75,69 +74,95 @@ conn.sendMessage(jid, { text, ...opts }, { quoted });
 //=================
 conn.sendExternalThumb = async (jid, config = {}, options = {}) => {
 const { text, title, body, thumbUrl, iconUrl, sourceUrl } = config;
-const quoted = options.quoted || ""; 
+const quoted = options.quoted || "";
 let jpegBuf = null;
 let thumbData = {};
 let iconData = {};
-let tasks = [];
 if (thumbUrl) {
-tasks.push(
-prepareWAMessageMedia({ image: { url: thumbUrl } }, { upload: conn.waUploadToServer, mediaTypeOverride: "thumbnail-link" })
-.then(wam => {
-let i = wam.imageMessage || wam;
-jpegBuf = i.jpegThumbnail || null;
-thumbData = {
-thumbnailDirectPath: i.directPath || "",
-thumbnailSha256: i.fileSha256?.toString('base64') || "",
-thumbnailEncSha256: i.fileEncSha256?.toString('base64') || "",
-mediaKey: i.mediaKey?.toString('base64') || "",
-thumbnailHeight: i.height || 1,
-thumbnailWidth: i.width || 1
-};
-}).catch(() => {})
+try {
+let imageBuffer = /^https?:\/\//i.test(thumbUrl)
+? Buffer.from(await (await fetch(thumbUrl)).arrayBuffer())
+: fs.readFileSync(thumbUrl);
+let image = await Jimp.fromBuffer(imageBuffer);
+let width = image.bitmap.width;
+let height = image.bitmap.height;
+jpegBuf = await image.getBuffer("image/jpeg", { quality: 70 });
+let wam = await prepareWAMessageMedia(
+{ image: imageBuffer },
+{ upload: conn.waUploadToServer, mediaTypeOverride: "thumbnail-link" }
 );
+let i = wam?.imageMessage || wam;
+thumbData = {
+thumbnailDirectPath: i?.directPath || "",
+thumbnailSha256: i?.fileSha256 || "",
+thumbnailEncSha256: i?.fileEncSha256 || "",
+mediaKey: i?.mediaKey || "",
+mediaKeyTimestamp: i?.mediaKeyTimestamp || 0,
+thumbnailHeight: i?.height || height || 300,
+thumbnailWidth: i?.width || width || 300
+};
+} catch {}
 }
+
 if (iconUrl) {
-tasks.push(
-prepareWAMessageMedia({ image: { url: iconUrl } }, { upload: conn.waUploadToServer, mediaTypeOverride: "thumbnail-link" })
-.then(wam => {
-let i = wam.imageMessage || wam;
+try {
+let imageInput = /^https?:\/\//i.test(iconUrl)
+? { url: iconUrl }
+: fs.readFileSync(iconUrl);
+
+let wam = await prepareWAMessageMedia(
+{ image: imageInput },
+{ upload: conn.waUploadToServer, mediaTypeOverride: "thumbnail-link" }
+);
+
+let i = wam?.imageMessage || wam;
+
 iconData = {
 faviconMMSMetadata: {
-thumbnailDirectPath: i.directPath || "",
-thumbnailSha256: i.fileSha256?.toString('base64') || "",
-thumbnailEncSha256: i.fileEncSha256?.toString('base64') || "",
-mediaKey: i.mediaKey?.toString('base64') || "",
+thumbnailDirectPath: i?.directPath || "",
+thumbnailSha256: i?.fileSha256 || "",
+thumbnailEncSha256: i?.fileEncSha256 || "",
+mediaKey: i?.mediaKey || "",
+mediaKeyTimestamp: i?.mediaKeyTimestamp || 0,
+thumbnailHeight: i?.height || 0,
+thumbnailWidth: i?.width || 0
 }
 };
-}).catch(() => {})
-);
+} catch {}
 }
-await Promise.all(tasks);
+
 let finalText = text || "";
+
 if (sourceUrl && !finalText.includes(sourceUrl)) {
 finalText = `${sourceUrl}\n${finalText}`;
 }
-let content = {
+
+return await conn.relayMessage(
+jid,
+{
 extendedTextMessage: {
 text: finalText,
 matchedText: sourceUrl || "",
 title: title || "",
 description: body || "",
-previewType: 1,
-renderLargerThumbnail: true,
+previewType: 0,
 jpegThumbnail: jpegBuf,
 ...thumbData,
 ...iconData,
-contextInfo: quoted ? {
-stanzaId: quoted.key.id,
-participant: quoted.key.participant || quoted.key.remoteJid,
-quotedMessage: quoted.message
-} : {}
+contextInfo: quoted
+? {
+stanzaId: quoted?.key?.id,
+participant: quoted?.key?.participant || quoted?.key?.remoteJid,
+quotedMessage: quoted?.message
+}
+: {}
 },
-messageContextInfo: { messageSecret: crypto.randomBytes(32) }
-};
-return await conn.relayMessage(jid, content, { quoted });
+messageContextInfo: {
+messageSecret: crypto.randomBytes(32)
+}
+},
+{ quoted }
+);
 };
 //=================
 conn.sendMediaAsSticker = async (jid, mediaPath, quoted, options = {}) => {

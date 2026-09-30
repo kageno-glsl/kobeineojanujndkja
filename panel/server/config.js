@@ -35,6 +35,7 @@ export const config = {
   // Admin credentials (legacy fallback if needed)
   adminUsername: process.env.PANEL_ADMIN_USERNAME || global.adminUsername || "admin",
   adminPassword: process.env.PANEL_ADMIN_PASSWORD || global.adminPassword || "kobeni2026!",
+  firebaseConfig: global.firebaseConfig || null,
   
   // Session secret
   sessionSecret: process.env.PANEL_SESSION_SECRET || crypto.randomBytes(32).toString("hex"),

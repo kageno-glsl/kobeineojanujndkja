@@ -1,18 +1,5 @@
 import './system/setting.js';
-import baileys from "@whiskeysockets/baileys";
-const makeWASocket = baileys.default || baileys.makeWASocket;
-const {useMultiFileAuthState, DisconnectReason} = baileys;
-
-const silentLogger = (baileys.DEFAULT_CONNECTION_CONFIG?.logger?.child?.({}) || {
-  level: "silent",
-  info: () => {},
-  error: () => {},
-  warn: () => {},
-  debug: () => {},
-  trace: () => {},
-  child: () => silentLogger,
-});
-silentLogger.level = "silent";
+import makeWASocket, {useMultiFileAuthState, DisconnectReason} from "@whiskeysockets/baileys";
 import fs from 'node:fs';
 import path from 'node:path';
 import {smsg} from './system/lib/smsg.js';
@@ -45,11 +32,10 @@ if (!fs.existsSync(sessionPath)) fs.mkdirSync(sessionPath, { recursive: true });
 const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 const isNew = !fs.existsSync(path.join(sessionPath, 'creds.json'));
 const connectionOptions = {
-logger: silentLogger,
 keepAliveIntervalMs: 30000,
 printQRInTerminal: !global.usePairingCode,
 auth: state,
-browser: ["Mac OS", "Safari", "17.0"],
+browser: ["Mac OS", "Safari", "17.0"],   
 markOnlineOnConnect: false, 
 generateHighQualityLinkPreview: false, 
 getMessage: async () => ({ conversation: 'kyahh' })
@@ -60,9 +46,9 @@ if (pathConnHandler) pathConnHandler(conn);
 //=================
 let pairingCode = "";
 if (isNew && !conn.authState.creds.registered) {
-await new Promise(resolve => setTimeout(resolve, 2500)); 
+await new Promise(resolve => setTimeout(resolve, 3000)); 
 try {
-  pairingCode = await conn.requestPairingCode(id, global.pairingcode || "");
+pairingCode = await conn.requestPairingCode(number.trim(), global.pairingcode || "");
 } catch (e) {}
 }
 //=================
@@ -79,11 +65,9 @@ lastDisconnect?.error?.output?.statusCode ||
 lastDisconnect?.error?.statusCode ||
 lastDisconnect?.error?.cause?.statusCode
 const R = DisconnectReason;
-if (conn.authState?.creds?.registered && [R.badSession, R.loggedOut, R.connectionReplaced].includes(reason)) return delBot(id, true);
-// If still in pairing phase, retry gently instead of deleting
-setTimeout(() => {
-  addBot(number, true).catch(() => {});
-}, 5000);
+if ([R.badSession, R.loggedOut, R.connectionReplaced].includes(reason)) return delBot(id, true);
+if (isNew && !conn.authState?.creds?.registered) return delBot(id, true);
+return addBot(number, true); 
 });
 //=================
 conn.ev.on("messages.upsert", async ({ messages, type }) => {
@@ -150,8 +134,7 @@ return [...bots.keys()];
 //=================
 function getMainNumber() {
 try {
-const credsPath = path.join(import.meta.dirname, 'session', 'creds.json');
-const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+const creds = fs.readJsonSync(path.join(import.meta.dirname, 'session', 'creds.json'));
 return creds.me.id.split(':')[0];
 } catch {
 return null;

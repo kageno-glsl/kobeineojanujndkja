@@ -4,11 +4,7 @@
   "description": "V1 — (KOBENI-MD)",
   "type": "module",
   "scripts": {
-    "dev": "node index.js",
-    "build": "node -e 'console.log(\"Build complete\")'",
     "start": "node index.js",
-    "panel": "node panel/server/index.js",
-    "test": "node panel/tests/smoke.test.js",
     "postinstall": "mkdir -p node_modules/.bin && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o node_modules/.bin/yt-dlp && chmod +x node_modules/.bin/yt-dlp"
   },
   "author": "KagenouReal",
@@ -19,7 +15,6 @@
     "cheerio": "^1.2.0",
     "express": "^5.2.1",
     "file-type": "^22.0.2",
-    "firebase": "^12.19.0",
     "form-data": "^4.0.6",
     "fs-extra": "^10.1.0",
     "image-to-pdf": "^3.0.2",

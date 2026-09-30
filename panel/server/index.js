@@ -6,6 +6,7 @@ import { config } from "./config.js";
 import { logService } from "./services/logService.js";
 import { realTimeService } from "./services/realTimeService.js";
 import { getMainBotController } from "./services/mainBotBridge.js";
+import { isAuthorizedWebSocketUpgrade } from "./security.js";
 
 // Routes
 import authRoutes from "./routes/authRoutes.js";
@@ -17,8 +18,26 @@ import logRoutes from "./routes/logRoutes.js";
 const app = express();
 const server = http.createServer(app);
 
-// Initialize WebSocket server on same HTTP port
-const wss = new WebSocketServer({ server, path: "/ws" });
+// Authenticate realtime clients before completing the WebSocket upgrade.
+const wss = new WebSocketServer({ noServer: true });
+server.on("upgrade", (req, socket, head) => {
+  let pathname;
+  try {
+    pathname = new URL(req.url || "/", "http://localhost").pathname;
+  } catch (_e) {
+    pathname = "";
+  }
+
+  if (pathname !== "/ws" || !isAuthorizedWebSocketUpgrade(req)) {
+    socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+
+  wss.handleUpgrade(req, socket, head, (webSocket) => {
+    wss.emit("connection", webSocket, req);
+  });
+});
 realTimeService.init(server, wss);
 
 // Security & Parsing Middleware

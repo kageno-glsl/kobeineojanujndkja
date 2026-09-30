@@ -3,6 +3,20 @@ import axios from "axios";
 import { spawn } from "child_process";
 import fs from "fs";
 //=================
+async function getYtmp3ApiKey() {
+const response = await axios.get("https://ytmp3.gl/", {
+headers: {
+accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+"accept-language": "en-US,en;q=0.9",
+"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150.0.0.0 Safari/537.36",
+},
+timeout: 30000,
+});
+const match = String(response.data).match(/var\s+apiKey\s*=\s*['"]([^'"]+)['"]/);
+if (!match) throw new Error("YTMP3 API key not found");
+return match[1];
+}
+//=================
 async function downloadApiMedia(url, config) {
 const headers = {
 accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -57,9 +71,10 @@ return `${downloadUrl}${separator}v=${videoId}&f=${format}${referrer}`;
 };
 const timestamp = Date.now();
 const requestConfig = {headers, timeout: 30000};
-const auth = (await axios.get(`https://${config.host}/api/v1/auth?_${timestamp}`, requestConfig)).data;
+const apiKey = await getYtmp3ApiKey();
+const auth = (await axios.get(`https://${config.host}/api/v1/auth?api_key=${encodeURIComponent(apiKey)}&_${timestamp}`, requestConfig)).data;
 if (auth.err !== 0 || !auth.key) throw new Error("API auth failed");
-const init = (await axios.get(`https://${config.host}/api/v1/init?_${timestamp + 100}`, {
+const init = (await axios.get(`https://${config.host}/api/v1/init?_=${timestamp + 100}`, {
 ...requestConfig,
 headers: {...headers, authorization: `Bearer ${auth.key}`},
 })).data;
@@ -229,15 +244,16 @@ if (fs.existsSync(output)) fs.unlinkSync(output);
 return;
 }
 if (fs.existsSync(output)) fs.unlinkSync(output);
-const configs = [
-{label: "Gamma (ytmp3.gl)", host: "gamma.gammacloud.net", origin: "https://ytmp3.gl", downloadReferrer: "ytmp3.gl"},
-{label: "Epsilon (convertytmp3.org)", host: "epsilon.epsiloncloud.org", origin: "https://convertytmp3.org", downloadReferrer: "convertytmp3.org"},
-];
-for (const config of configs) {
+const config = {
+label: "YTMP3 (ytmp3.gl)",
+host: "gamma.gammacloud.net",
+origin: "https://ytmp3.gl",
+downloadReferrer: "ytmp3.gl",
+};
 const res = await convertWithApi(vid.url, config, "mp3");
 if (!res.success || !res.downloadURL) {
 console.error(`Handler:` , res.error || "missing download URL");
-continue;
+return m.reply(mess.error);
 }
 try {
 const media = await downloadApiMedia(res.downloadURL, config);
@@ -253,7 +269,6 @@ fileName: `${res.title || vid.title}.mp3`,
 return;
 } catch (error) {
 console.error("Handler:", error.message);
-}
 }
 m.reply(mess.error);
 } catch (err) {

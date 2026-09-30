@@ -6,7 +6,7 @@ import {
 } from "../services/mainBotBridge.js";
 import { kobeniService } from "../services/kobeniService.js";
 import { auditService } from "../services/auditService.js";
-import { requireAuth } from "../security.js";
+import { requireAuth, mutationLimiter } from "../security.js";
 
 const router = express.Router();
 
@@ -87,7 +87,7 @@ router.get("/settings", requireAuth, (_req, res) => {
 });
 
 // POST Update Bot Settings
-router.post("/settings", requireAuth, (req, res) => {
+router.post("/settings", requireAuth, mutationLimiter, (req, res) => {
   const { prefix, pairingcode, wmsw, isPublic, pairingTargetNumber } = req.body || {};
 
   if (Array.isArray(prefix)) {

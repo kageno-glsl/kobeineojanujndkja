@@ -1,7 +1,5 @@
 import crypto from "node:crypto";
 import https from "node:https";
-import fs from "node:fs";
-import path from "node:path";
 import { config } from "../config.js";
 
 // In-memory active admin sessions: token -> { email, username, role: "admin", createdAt, expiresAt }
@@ -9,13 +7,7 @@ const activeSessions = new Map();
 
 // Helper to get Firebase app config (apiKey, projectId)
 function getFirebaseConfig() {
-  try {
-    const configPath = path.join(config.rootDir, "firebase-applet-config.json");
-    if (fs.existsSync(configPath)) {
-      return JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    }
-  } catch (_e) {}
-  return null;
+  return config.firebaseConfig;
 }
 
 // Decode and parse JWT payload without external dependencies
